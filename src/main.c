@@ -10,191 +10,133 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "../libft/libft.h"
-#include "../minilibx_macos/mlx.h"
 #include "head.h"
-#include <stdio.h>
 
-// int				deal_key(int key, void *param)
-// {
-// 	return (0);
-// }
-
-void 			check_valid_z(char *str, t_map *map, int *j)
+void					imput_in_list(t_map *map, char **str, int y)
 {
-	*j = 0;
-	if (str[*j] == '-')
-		(*j)++;
-	while (str[*j] != ',' && str[*j] != '\0')
-	{
-		if (!ft_isdigit(str[(*j)++]))
-		{
-			map->error = 1;
-			return ;
-		}
-	}
-}
-
-int				is_input(char ch)
-{
-	int			i;
-	char		*test_str;
+	int					i;
 
 	i = 0;
-	test_str = "0123456789AaBbCcDdEeFf\0";
-	while (test_str[i] != '\0')
-	{
-		if (test_str[i] == ch)
-			return (1);
-		i++;
-	}
-	return 0;
-}
-
-void 			check_valid_color(char *str, t_map *map)
-{
-	int			i;
-	int			j;
-
-	i = 0;
-	j = 0;
-	if ((str[i] != '0' && str[i + 1] != 'x') || str[i + 2] == '\0')
-	{
-		map->error = 1;
-		return ;
-	}
-	i += 2;
-	while (str[i] != '\0')
-	{
-		if (!is_input(str[i]) || j > 6)
-		{
-			map->error = 1;
-			return ;
-		}
-		i++;
-		j++;
-	}
-}
-
-void			search_color(char *str, t_content **point, t_map *map)
-{
-	check_valid_color(str, map);
-	if (map->error != 1)
-		(*point)->color = ft_atoi_base(str + 2, 16);
-}
-
-void			search_another_parametrs(char *str, t_content **point,
-																t_map *map)
-{
-	int			j;
-
-	check_valid_z(str, map, &j);
-	if (map->error == 1)
-		return ;
-	(*point)->z = ft_atoi(str);
-	if (str[j] == ',')
-		search_color(&str[j + 1], point, map);
-	else
-		(*point)->color = 0xC0C0C0;
-}
-
-void			imput_in_list(t_content **point, t_map *map, char **str, int y)
-{
-	int 		i;
-
-	i = 0;
-
+	map->map_width = 0;
+	map->zoom_x = 20;
+	map->zoom_y = 20;
+	map->center = 200;
+	map->map_width = map->size_str[0];
+	map->mass[y] = ft_memalloc(sizeof(int) * map->map_width + 1);
+	map->color[y] = ft_memalloc(sizeof(int) * map->map_width + 1);
 	while (str[i])
 	{
-		(*point)->x = i;
-		(*point)->y = y;
-		search_another_parametrs(str[i], point, map);
+		search_another_parametrs(str[i], map, y, i);
 		if (map->error == 1)
 		{
 			ft_putstr("Invalid map!\n");
 			exit(1);
 		}
-		(*point)->next = ft_memalloc(sizeof(t_content));
-		*point = (*point)->next;
-		(*point)->next = NULL;
 		i++;
 	}
 	map->size_map += i;
 }
 
-t_content		*make_content(t_map *map, int fd)
+void					make_content(t_map *map)
 {
-	t_content	*head_list;
-	t_content	*point;
-	char		*line;
-	int			y;
-	int			x;
-	char		**str;
+	char				*line;
+	int					y;
+	char				**str;
 
 	y = 0;
-	x = 0;
-	point = ft_memalloc(sizeof(t_content));
-	point->next = NULL;
-	head_list = point;
-	while (get_next_line(fd, &line))
+	while (get_next_line(map->fd, &line))
 	{
-		str = ft_strsplit(line , ' ');
-		imput_in_list(&point, map, str, y);
+		y++;
+		ft_strdel(&line);
+	}
+	close(map->fd);
+	map->map_height = y;
+	y = 0;
+	map->mass = ft_memalloc(sizeof(int *) * map->map_height + 1);
+	map->color = ft_memalloc(sizeof(int *) * map->map_height + 1);
+	map->size_str = ft_memalloc(sizeof(int *) * map->map_height + 1);
+	map->fd = open(map->file_name, O_RDONLY);
+	while (get_next_line(map->fd, &line))
+	{
+		str = ft_strsplit(line, ' ');
+		map->size_str[y] = count_num_coords(str);
+		imput_in_list(map, str, y);
+		ft_strdel(&line);
 		y++;
 	}
-	map->map_height = y;
-	return (head_list);
 }
 
-int				main(int argc, char **argv)
+void					dell_leaks(t_map *map)
 {
-	int			fd;
-	void		*mlx_ptr;
-	void		*win_ptr;
-	t_content	*point;
-	t_content	*head;
-	t_map		*map;
+	int					i;
 
-	map = ft_memalloc(sizeof(t_map));
-	map->zoom_base = 50;
-	map->zoom_x = map->zoom_base;
-	map->zoom_y = map->zoom_base;
-	//map->size_map = 0;
-	if (argc != 2 || (fd = open(argv[1], O_RDONLY)) == -1)
+	i = 0;
+	while (i < map->map_height)
 	{
-		ft_putstr("Invalid file!\n");
-		return (0);
+		free(map->mass[i]);
+		i++;
 	}
-	point = make_content(map, fd);
-	head = point;
-	mlx_ptr = mlx_init();
-	win_ptr = mlx_new_window(mlx_ptr, 1200, 800, argv[1]);
-	while (point)
-	{	
-		mlx_pixel_put(mlx_ptr, win_ptr, point->x + map->zoom_x + 50,
-						point->y + map->zoom_y + 50, point->color);
-		if (point->next && point->next->x > point->x)
-			{
-				map->zoom_x += 50;
-			}
-		else
-		{
-			map->zoom_x = map->zoom_base;
-			map->zoom_y += 50;
-		}
-		point = point->next;
+	free(map->mass);
+	i = 0;
+	while (i < map->map_height)
+	{
+		free(map->color[i]);
+		i++;
 	}
-	//mlx_key_hook(win_ptr, deal_key, (void *)70);
-	//mlx_pixel_put(mlx_ptr, win_ptr, 10, 10, 0xFFFFFF);
-	mlx_loop(mlx_ptr);
+	free(map->color);
+	free(map->size_str);
+	free(map->file_name);
+	free(map->mlx_ptr);
+	free(map->win_ptr);
+	free(map->image);
+}
+
+static int				ft_key(int key, t_map *map)
+{
+	if (key == 53)
+	{
+		dell_leaks(map);
+		exit(0);
+	}
+	else if (key == 78)
+	{
+		map->zoom_x -= 3;
+		map->zoom_y -= 2;
+	}
+	else if (key == 69)
+	{
+		map->zoom_x += 3;
+		map->zoom_y += 2;
+	}
+	else if (key == 125)
+		map->center += 20;
+	else if (key == 126)
+		map->center -= 20;
+	mlx_put_image_to_window(map->mlx_ptr, map->win_ptr, map->image, 0, 0);
+	display1(map);
+	display2(map);
 	return (0);
 }
 
+int						main(int argc, char **argv)
+{
+	t_map				m;
+	t_map				*map;
 
-
-
-
-
-
-
-
+	map = &m;
+	valid_arg(argc, argv, map);
+	map->file_name = ft_memalloc(sizeof(char) * ft_strlen(argv[1]));
+	ft_strcpy(map->file_name, argv[1]);
+	make_content(map);
+	close(map->fd);
+	check_valid_width_map(map);
+	map->mlx_ptr = mlx_init();
+	map->win_ptr = mlx_new_window(map->mlx_ptr, WIDTH, HEIGHT, argv[1]);
+	map->image = mlx_new_image(map->mlx_ptr, WIDTH, HEIGHT);
+	display1(map);
+	display2(map);
+	mlx_key_hook(map->win_ptr, ft_key, map);
+	mlx_hook(map->win_ptr, 17, 1L << 17, exit_x, map->mlx_ptr);
+	mlx_loop(map->mlx_ptr);
+	return (0);
+}
